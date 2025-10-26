@@ -13,6 +13,7 @@ import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.potion.PotionEffect;
 import net.minecraft.util.MathHelper;
 import net.minecraft.world.World;
+import net.minecraft.init.Blocks;
 
 import cpw.mods.fml.common.gameevent.TickEvent;
 import cpw.mods.fml.common.network.simpleimpl.IMessage;
@@ -114,6 +115,7 @@ public class TemperatureHandler extends StatHandlerBase implements ITemperature 
 
     @Override
     public void update(EntityPlayer player, World world, TickEvent.Phase phase) {
+        // We get called for BOTH phases; apply logic on END (mirrors thirst/your original)
         if (phase != TickEvent.Phase.END || world.isRemote) return;
 
         final String pname = player.getCommandSenderName();
@@ -136,6 +138,10 @@ public class TemperatureHandler extends StatHandlerBase implements ITemperature 
         target = this.seasonModifier.modifyTarget(world, player, target);
 
         int targetRaw = MathHelper.clamp_int(target.getRawValue(), 0, TemperatureScale.getScaleTotal());
+
+        // >>> Small, explicit environment push so Nether/lava visibly go HOT <<<
+        targetRaw = applyEnvironmentHeatModifiers(player, world, targetRaw);
+
         this.debugger.targetTemperature = targetRaw;
 
         TemperatureTrend trend = (targetRaw == this.temperatureLevel)
@@ -228,6 +234,39 @@ public class TemperatureHandler extends StatHandlerBase implements ITemperature 
         if (player instanceof EntityPlayerMP && ++this.debugger.debugTimer % 5 == 0) {
             this.debugger.finalize((EntityPlayerMP) player);
         }
+    }
+
+    /** Push target hotter in the Nether and near local heat sources so the icon/vignette show. */
+    private int applyEnvironmentHeatModifiers(EntityPlayer player, World world, int target) {
+        int t = target;
+
+        // Strong baseline heat in the Nether
+        if (world.provider != null && world.provider.isHellWorld) {
+            t += 7; // enough to push into warm/hot ranges
+        }
+
+        // Local heat sources: scan a 3x3x3 around the player
+        int px = (int)Math.floor(player.posX);
+        int py = (int)Math.floor(player.posY);
+        int pz = (int)Math.floor(player.posZ);
+        int localHeat = 0;
+
+        for (int dx = -1; dx <= 1; dx++)
+        for (int dy = -1; dy <= 1; dy++)
+        for (int dz = -1; dz <= 1; dz++) {
+            net.minecraft.block.Block b = world.getBlock(px + dx, py + dy, pz + dz);
+            if (b == Blocks.lava || b == Blocks.flowing_lava) localHeat += 2;
+            else if (b == Blocks.fire) localHeat += 1;
+        }
+
+        if (localHeat > 0) {
+            t += Math.min(6, localHeat);
+        }
+
+        int max = TemperatureScale.getScaleTotal();
+        if (t < 0)  t = 0;
+        if (t > max) t = max;
+        return t;
     }
 
     /* -------------------------------------------------------------

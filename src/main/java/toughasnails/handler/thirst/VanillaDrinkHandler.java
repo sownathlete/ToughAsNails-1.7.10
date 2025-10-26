@@ -2,16 +2,16 @@ package toughasnails.handler.thirst;
 
 import cpw.mods.fml.common.eventhandler.SubscribeEvent;
 import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.init.Items;
 import net.minecraft.item.ItemPotion;
 import net.minecraft.item.ItemStack;
+import net.minecraft.nbt.NBTTagCompound;
 import net.minecraftforge.event.entity.player.PlayerUseItemEvent;
-import toughasnails.api.thirst.ThirstHelper;
+import toughasnails.handler.PacketHandler;
+import toughasnails.network.message.MessageUpdateStat;
 import toughasnails.thirst.ThirstHandler;
 
-/**
- * Handles vanilla drink completions (milk & potions) to restore thirst in Forge 1.7.10.
- */
 public class VanillaDrinkHandler {
 
     @SubscribeEvent
@@ -19,36 +19,34 @@ public class VanillaDrinkHandler {
         EntityPlayer player = event.entityPlayer;
         ItemStack stack = event.item;
         if (player == null || stack == null) return;
+        if (player.worldObj.isRemote) return; // server only
 
-        // Get TAN thirst data (backs your capability backport)
-        ThirstHandler thirst = (ThirstHandler) ThirstHelper.getThirstData(player);
-        if (thirst == null || !thirst.isThirsty()) return;
+        ThirstHandler thirst = ThirstHandler.getOrCreate(player);
+        if (thirst == null) return;
 
         boolean zeroStack = false;
-        if (stack.stackSize <= 0) {
-            stack.stackSize = 1; // temporarily prevent NPEs in item logic
-            zeroStack = true;
-        }
+        if (stack.stackSize <= 0) { stack.stackSize = 1; zeroStack = true; }
 
-        // Milk bucket = bigger thirst restore
         if (stack.getItem() == Items.milk_bucket) {
             thirst.addStats(6, 0.7F);
-        }
-        // Vanilla potion bottle
-        else if (stack.getItem() == Items.potionitem) {
+        } else if (stack.getItem() == Items.potionitem) {
             ItemPotion potion = (ItemPotion) stack.getItem();
-
-            // Plain water bottle has no effects
             if (potion.getEffects(stack) == null || potion.getEffects(stack).isEmpty()) {
-                thirst.addStats(7, 0.5F);
+                thirst.addStats(7, 0.5F); // water bottle
             } else {
-                // Actual potion (has effects)
-                thirst.addStats(4, 0.3F);
+                thirst.addStats(4, 0.3F); // actual potions
             }
         }
 
-        if (zeroStack) {
-            stack.stackSize = 0; // restore original zeroed state
+        // Persist + sync now so HUD flips immediately
+        ThirstHandler.save(player, thirst);
+        if (player instanceof EntityPlayerMP) {
+            NBTTagCompound tag = new NBTTagCompound();
+            thirst.writeToNBT(tag);
+            thirst.onSendClientUpdate();
+            PacketHandler.instance.sendTo(new MessageUpdateStat("thirst", tag), (EntityPlayerMP) player);
         }
+
+        if (zeroStack) stack.stackSize = 0;
     }
 }

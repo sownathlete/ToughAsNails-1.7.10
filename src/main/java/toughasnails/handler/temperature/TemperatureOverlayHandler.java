@@ -11,7 +11,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.EntityClientPlayerMP;
 import net.minecraft.client.gui.ScaledResolution;
 import net.minecraft.client.renderer.Tessellator;
-import net.minecraft.entity.player.PlayerCapabilities;
 import net.minecraft.util.ResourceLocation;
 import net.minecraftforge.client.event.RenderGameOverlayEvent;
 import cpw.mods.fml.common.gameevent.TickEvent;
@@ -25,8 +24,8 @@ import toughasnails.util.RenderUtils;
 @SideOnly(Side.CLIENT)
 public class TemperatureOverlayHandler {
 
-    public static final ResourceLocation OVERLAY = new ResourceLocation("toughasnails:textures/gui/overlay.png");
-    public static final ResourceLocation ICE_VIGNETTE = new ResourceLocation("toughasnails:textures/gui/ice_vignette.png");
+    public static final ResourceLocation OVERLAY       = new ResourceLocation("toughasnails:textures/gui/overlay.png");
+    public static final ResourceLocation ICE_VIGNETTE  = new ResourceLocation("toughasnails:textures/gui/ice_vignette.png");
     public static final ResourceLocation FIRE_VIGNETTE = new ResourceLocation("toughasnails:textures/gui/fire_vignette.png");
 
     private final Random random = new Random();
@@ -46,47 +45,51 @@ public class TemperatureOverlayHandler {
 
     @SubscribeEvent
     public void onPostRenderOverlay(RenderGameOverlayEvent.Post event) {
-        Minecraft mc = Minecraft.getMinecraft();
-        ScaledResolution resolution = new ScaledResolution(mc, mc.displayWidth, mc.displayHeight);
-        int width = resolution.getScaledWidth();
-        int height = resolution.getScaledHeight();
+        if (!SyncedConfig.getBooleanValue(GameplayOption.ENABLE_TEMPERATURE)) return;
 
+        Minecraft mc = Minecraft.getMinecraft();
         EntityClientPlayerMP player = mc.thePlayer;
         if (player == null) return;
 
-        // Backported capability access
+        // 1.7.10-style access
         TemperatureHandler temperatureStats = TemperatureHandler.get(player);
         if (temperatureStats == null) return;
 
         Temperature temperature = temperatureStats.getTemperature();
-        random.setSeed(updateCounter * 312871);
 
-        if (event.type == RenderGameOverlayEvent.ElementType.PORTAL && SyncedConfig.getBooleanValue(GameplayOption.ENABLE_TEMPERATURE)) {
-            if (!player.capabilities.isCreativeMode) {
-                drawTemperatureVignettes(width, height, temperature);
-            }
-        } else if (event.type == RenderGameOverlayEvent.ElementType.EXPERIENCE && SyncedConfig.getBooleanValue(GameplayOption.ENABLE_TEMPERATURE)) {
+        ScaledResolution res = new ScaledResolution(mc, mc.displayWidth, mc.displayHeight);
+        int width  = res.getScaledWidth();
+        int height = res.getScaledHeight();
+
+        // Draw the vignette for ALL (guaranteed) so it always appears
+        if (event.type == RenderGameOverlayEvent.ElementType.ALL && !player.capabilities.isCreativeMode) {
+            drawTemperatureVignette(width, height, temperature);
+        }
+
+        // Draw the icon on EXPERIENCE (kept original placement)
+        if (event.type == RenderGameOverlayEvent.ElementType.EXPERIENCE) {
             minecraft.getTextureManager().bindTexture(OVERLAY);
             if (minecraft.playerController.gameIsSurvivalOrAdventure()) {
-                drawTemperature(width, height, temperature);
+                drawTemperatureIcon(width, height, temperature);
             }
         }
     }
 
-    private void drawTemperature(int width, int height, Temperature temperature) {
+    /* ---------------- Icon (unchanged behaviour) ---------------- */
+
+    private void drawTemperatureIcon(int width, int height, Temperature temperature) {
         int left = width / 2 - 8;
-        int top = height - 52;
+        int top  = height - 52;
+
         TemperatureScale.TemperatureRange range = temperature.getRange();
 
-        // Shake effect when extreme
+        // Small shake in extreme ranges
         if (range == TemperatureScale.TemperatureRange.ICY || range == TemperatureScale.TemperatureRange.HOT) {
             float shakeDelta = (range == TemperatureScale.TemperatureRange.ICY)
                     ? temperature.getRangeDelta(true)
                     : temperature.getRangeDelta(false);
-            if (updateCounter % 1 == 0) {
-                top += (random.nextInt(3) - 1) * Math.min(shakeDelta * 3.0F, 1.0F);
-                left += (random.nextInt(3) - 1) * Math.min(shakeDelta * 1.5F, 1.0F);
-            }
+            top  += (random.nextInt(3) - 1) * Math.min(shakeDelta * 3.0F, 1.0F);
+            left += (random.nextInt(3) - 1) * Math.min(shakeDelta * 1.5F, 1.0F);
         }
 
         int tempLevel = temperature.getRawValue();
@@ -147,40 +150,6 @@ public class TemperatureOverlayHandler {
         }
     }
 
-    private void drawTemperatureVignettes(int width, int height, Temperature temperature) {
-        TemperatureScale.TemperatureRange range = temperature.getRange();
-        float opacity = temperature.getRangeDelta(false);
-        ResourceLocation vignette = null;
-
-        if (range == TemperatureScale.TemperatureRange.ICY) {
-            opacity = 1.0F - temperature.getRangeDelta(true);
-            vignette = ICE_VIGNETTE;
-        } else if (range == TemperatureScale.TemperatureRange.HOT) {
-            vignette = FIRE_VIGNETTE;
-        }
-
-        if (vignette != null) {
-            minecraft.getTextureManager().bindTexture(vignette);
-            GL11.glDisable(GL11.GL_DEPTH_TEST);
-            GL11.glDepthMask(false);
-            GL11.glEnable(GL11.GL_BLEND);
-            GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
-            GL11.glColor4f(1F, 1F, 1F, opacity);
-
-            Tessellator tess = Tessellator.instance;
-            tess.startDrawingQuads();
-            tess.addVertexWithUV(0, height, -90, 0, 1);
-            tess.addVertexWithUV(width, height, -90, 1, 1);
-            tess.addVertexWithUV(width, 0, -90, 1, 0);
-            tess.addVertexWithUV(0, 0, -90, 0, 0);
-            tess.draw();
-
-            GL11.glDepthMask(true);
-            GL11.glEnable(GL11.GL_DEPTH_TEST);
-            GL11.glColor4f(1F, 1F, 1F, 1F);
-        }
-    }
-
     private static TemperatureIcon getTemperatureIcon(int scalePos) {
         if (scalePos < 0 || scalePos > TemperatureScale.getScaleTotal())
             return TemperatureIcon.BALL;
@@ -199,8 +168,8 @@ public class TemperatureOverlayHandler {
 
     private static enum TemperatureIcon {
         SNOWFLAKE(0, 9, TemperatureScale.TemperatureRange.ICY),
-        BALL(1, 10, TemperatureScale.TemperatureRange.COOL, TemperatureScale.TemperatureRange.WARM),
-        FIRE(2, 11, TemperatureScale.TemperatureRange.HOT);
+        BALL     (1,10, TemperatureScale.TemperatureRange.COOL, TemperatureScale.TemperatureRange.WARM),
+        FIRE     (2,11, TemperatureScale.TemperatureRange.HOT);
 
         public final int backgroundIndex, foregroundIndex;
         public final TemperatureScale.TemperatureRange startRange, endRange;
@@ -215,4 +184,74 @@ public class TemperatureOverlayHandler {
             this(bg, fg, range, range);
         }
     }
+
+    /* ---------------- Vignette (new logic) ---------------- */
+
+    /**
+     * Draw a full-screen vignette for COOL/WARM (subtle) and ICY/HOT (stronger).
+     * Runs in Post/ALL so it always renders on top of the world but under HUD.
+     */
+    private void drawTemperatureVignette(int width, int height, Temperature temperature) {
+        TemperatureScale.TemperatureRange range = temperature.getRange();
+
+        ResourceLocation tex = null;
+        float alpha = 0.0F;
+
+        switch (range) {
+            case COOL: {
+                // Increase from 0 up to ~0.35 as you approach ICY
+                float t = clamp01(temperature.getRangeDelta(true));
+                tex = ICE_VIGNETTE;
+                alpha = 0.35F * t;
+                break;
+            }
+            case ICY: {
+                // Stronger opacity in ICY: 0.35..0.85 as you get colder
+                float t = clamp01(1.0F - temperature.getRangeDelta(true));
+                tex = ICE_VIGNETTE;
+                alpha = 0.35F + 0.50F * t;
+                break;
+            }
+            case WARM: {
+                float t = clamp01(temperature.getRangeDelta(false));
+                tex = FIRE_VIGNETTE;
+                alpha = 0.30F * t;
+                break;
+            }
+            case HOT: {
+                float t = clamp01(temperature.getRangeDelta(false));
+                tex = FIRE_VIGNETTE;
+                alpha = 0.30F + 0.55F * t;
+                break;
+            }
+            default:
+                break;
+        }
+
+        if (tex == null || alpha <= 0.01F) return;
+
+        // --- GL state ---
+        minecraft.getTextureManager().bindTexture(tex);
+        GL11.glDisable(GL11.GL_DEPTH_TEST);
+        GL11.glDepthMask(false);
+        GL11.glEnable(GL11.GL_BLEND);
+        GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+        GL11.glColor4f(1F, 1F, 1F, alpha);
+
+        Tessellator t = Tessellator.instance;
+        t.startDrawingQuads();
+        t.addVertexWithUV(0,     height, -90, 0, 1);
+        t.addVertexWithUV(width, height, -90, 1, 1);
+        t.addVertexWithUV(width, 0,      -90, 1, 0);
+        t.addVertexWithUV(0,     0,      -90, 0, 0);
+        t.draw();
+
+        // --- restore ---
+        GL11.glDepthMask(true);
+        GL11.glEnable(GL11.GL_DEPTH_TEST);
+        GL11.glDisable(GL11.GL_BLEND);
+        GL11.glColor4f(1F, 1F, 1F, 1F);
+    }
+
+    private static float clamp01(float f) { return f < 0 ? 0 : (f > 1 ? 1 : f); }
 }

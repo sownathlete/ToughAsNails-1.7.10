@@ -1,3 +1,4 @@
+// File: toughasnails/handler/thirst/ThirstOverlayHandler.java
 package toughasnails.handler.thirst;
 
 import java.util.Random;
@@ -10,14 +11,14 @@ import cpw.mods.fml.relauncher.SideOnly;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.EntityClientPlayerMP;
 import net.minecraft.client.gui.ScaledResolution;
+import net.minecraft.client.renderer.OpenGlHelper;
 import net.minecraft.client.renderer.texture.TextureManager;
-import net.minecraft.potion.Potion;
 import net.minecraft.util.ResourceLocation;
 import net.minecraftforge.client.event.RenderGameOverlayEvent;
 import cpw.mods.fml.common.gameevent.TickEvent;
+import toughasnails.api.TANPotions;
 import toughasnails.api.config.GameplayOption;
 import toughasnails.api.config.SyncedConfig;
-import toughasnails.api.TANPotions;
 import toughasnails.thirst.ThirstHandler;
 import toughasnails.util.RenderUtils;
 
@@ -37,72 +38,84 @@ public class ThirstOverlayHandler {
         }
     }
 
-    @SubscribeEvent
-    public void onPreRenderOverlay(RenderGameOverlayEvent.Pre event) {
-        if (event.type == RenderGameOverlayEvent.ElementType.AIR && SyncedConfig.getBooleanValue(GameplayOption.ENABLE_THIRST)) {
-            GL11.glPushMatrix();
-            GL11.glTranslatef(0.0F, -10.0F, 0.0F);
-        }
-    }
-
+    /** Draw after vanilla bars so we can position relative to them. */
     @SubscribeEvent
     public void onPostRenderOverlay(RenderGameOverlayEvent.Post event) {
-        Minecraft mc = Minecraft.getMinecraft();
-        ScaledResolution res = new ScaledResolution(mc, mc.displayWidth, mc.displayHeight);
-        int width = res.getScaledWidth();
-        int height = res.getScaledHeight();
+        if (event.type != RenderGameOverlayEvent.ElementType.EXPERIENCE) return;
+        if (!SyncedConfig.getBooleanValue(GameplayOption.ENABLE_THIRST)) return;
 
-        EntityClientPlayerMP player = mc.thePlayer;
+        final Minecraft mc = Minecraft.getMinecraft();
+        final EntityClientPlayerMP player = mc.thePlayer;
         if (player == null) return;
+        if (!mc.playerController.gameIsSurvivalOrAdventure()) return;
 
-        // 1.7.10-style temperature/thirst retrieval
+        // Read client-side copy (kept in sync by our server messages)
         ThirstHandler thirstStats = ThirstHandler.get(player);
         if (thirstStats == null) return;
 
         int thirstLevel = thirstStats.getThirst();
         float thirstHydration = thirstStats.getHydration();
-
         random.setSeed(updateCounter * 312871L);
 
-        if (event.type == RenderGameOverlayEvent.ElementType.AIR && SyncedConfig.getBooleanValue(GameplayOption.ENABLE_THIRST)) {
+        // Screen size
+        ScaledResolution res = new ScaledResolution(mc, mc.displayWidth, mc.displayHeight);
+        int width = res.getScaledWidth();
+        int height = res.getScaledHeight();
+
+        // ---- GL state guard ----
+        TextureManager tm = mc.getTextureManager();
+        tm.bindTexture(OVERLAY);
+
+        GL11.glPushMatrix();
+        try {
+            GL11.glColor4f(1F, 1F, 1F, 1F);
+            GL11.glDisable(GL11.GL_LIGHTING);
+            GL11.glEnable(GL11.GL_BLEND);
+            OpenGlHelper.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, 1, 0);
+            GL11.glDisable(GL11.GL_ALPHA_TEST);
+
+            drawThirst(width, height, thirstLevel, thirstHydration);
+        } finally {
+            // Restore state so other overlays aren’t affected (prevents black boxes)
+            GL11.glEnable(GL11.GL_ALPHA_TEST);
+            GL11.glDisable(GL11.GL_BLEND);
+            GL11.glColor4f(1F, 1F, 1F, 1F);
             GL11.glPopMatrix();
-        } else if (event.type == RenderGameOverlayEvent.ElementType.EXPERIENCE && SyncedConfig.getBooleanValue(GameplayOption.ENABLE_THIRST)) {
-            TextureManager tm = minecraft.getTextureManager();
-            tm.bindTexture(OVERLAY);
-            if (minecraft.playerController.gameIsSurvivalOrAdventure()) {
-                drawThirst(width, height, thirstLevel, thirstHydration);
-            }
         }
     }
 
     private void drawThirst(int width, int height, int thirstLevel, float thirstHydrationLevel) {
-        int left = width / 2 + 91;
-        int top = height - 49;
+        final int left = width / 2 + 91;
+        final int top  = height - 49;
+
+        final boolean isDehydrated = (thirstHydrationLevel <= 0.0F);
+        final boolean hasThirstEffect = minecraft.thePlayer.isPotionActive(TANPotions.thirst);
 
         for (int i = 0; i < 10; ++i) {
             int dropletHalf = i * 2 + 1;
-            int iconIndex = 0;
-            int backgroundOffset = 0;
-            int startX = left - i * 8 - 9;
-            int startY = top;
+            int iconIndex = 0;       // 0.. overlay page X
+            int bgU = 0;             // background U on overlay
+            int x = left - i * 8 - 9;
+            int y = top;
 
-            if (minecraft.thePlayer.isPotionActive(TANPotions.thirst)) {
-                iconIndex += 4;
-                backgroundOffset += 117;
+            if (hasThirstEffect) {
+                iconIndex += 4;      // use “thirst” (blue) sheet for filled/half
+                bgU += 117;          // and its matching background
             }
 
-            if (thirstHydrationLevel <= 0.0F && updateCounter % (thirstLevel * 3 + 1) == 0) {
-                startY = top + (random.nextInt(3) - 1);
+            // Jitter only when hydration is 0; compute fresh each frame so it doesn’t “stick”
+            if (isDehydrated && ((updateCounter + i) % Math.max(1, thirstLevel * 3 + 1) == 0)) {
+                y = top + (random.nextInt(3) - 1);
             }
 
-            RenderUtils.drawTexturedModalRect(startX, startY, backgroundOffset, 16, 9, 9);
+            // background drop
+            RenderUtils.drawTexturedModalRect(x, y, bgU, 16, 9, 9);
 
+            // filled/half
             if (thirstLevel > dropletHalf) {
-                RenderUtils.drawTexturedModalRect(startX, startY, (iconIndex + 4) * 9, 16, 9, 9);
-            }
-
-            if (thirstLevel == dropletHalf) {
-                RenderUtils.drawTexturedModalRect(startX, startY, (iconIndex + 5) * 9, 16, 9, 9);
+                RenderUtils.drawTexturedModalRect(x, y, (iconIndex + 4) * 9, 16, 9, 9);
+            } else if (thirstLevel == dropletHalf) {
+                RenderUtils.drawTexturedModalRect(x, y, (iconIndex + 5) * 9, 16, 9, 9);
             }
         }
     }

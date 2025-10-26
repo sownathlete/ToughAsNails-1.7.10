@@ -77,9 +77,6 @@ public class ToughAsNails {
         // >>> Register tick handler on the **FML** bus (required for TickEvent.*) <<<
         FMLCommonHandler.instance().bus().register(new StatTickHandler());
 
-        // >>> Temperature/Thirst FML tick bridges <<<
-        TemperatureHelper.bootstrap();
-        ThirstHandler.bootstrap();
         logger.info("[TAN] Bootstrapped Temperature & Thirst tick handlers (FML bus).");
 
         proxy.registerRenderers();

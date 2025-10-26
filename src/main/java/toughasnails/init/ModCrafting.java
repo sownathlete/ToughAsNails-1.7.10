@@ -10,6 +10,7 @@ import net.minecraftforge.oredict.ShapedOreRecipe;
 import toughasnails.api.TANBlocks;
 import toughasnails.api.item.TANItems;
 import toughasnails.block.BlockTANTemperatureCoil;
+import toughasnails.crafting.WoolArmorRecipe;
 import toughasnails.item.ItemFruitJuice;
 import toughasnails.item.ItemTANWaterBottle;
 
@@ -24,15 +25,12 @@ public final class ModCrafting {
     /* Crafting                                                     */
     /* ============================================================ */
     private static void addCraftingRecipes() {
+    	
         /* ---------------- Armor: wool ---------------- */
-        GameRegistry.addShapedRecipe(new ItemStack(TANItems.wool_helmet),
-                "###", "# #", '#', Blocks.wool);
-        GameRegistry.addShapedRecipe(new ItemStack(TANItems.wool_chestplate),
-                "# #", "###", "###", '#', Blocks.wool);
-        GameRegistry.addShapedRecipe(new ItemStack(TANItems.wool_leggings),
-                "###", "# #", "# #", '#', Blocks.wool);
-        GameRegistry.addShapedRecipe(new ItemStack(TANItems.wool_boots),
-                "# #", "# #", '#', Blocks.wool);
+    	GameRegistry.addRecipe(new WoolArmorRecipe(0, "###","# #")); // helmet
+    	GameRegistry.addRecipe(new WoolArmorRecipe(1, "# #","###","###")); // chest
+    	GameRegistry.addRecipe(new WoolArmorRecipe(2, "###","# #","# #")); // legs
+    	GameRegistry.addRecipe(new WoolArmorRecipe(3, "# #","# #")); // boots
 
         /* ---------------- Armor: jelled slime ---------------- */
         GameRegistry.addShapedRecipe(new ItemStack(TANItems.jelled_slime_helmet),

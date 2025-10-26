@@ -42,22 +42,34 @@ item.bottle_of_blackdamp.name=Bottle of Blackdamp
 item.bottle_of_whitedamp.name=Bottle of Whitedamp
 item.bottle_of_firedamp.name=Bottle of Firedamp
 item.bottle_of_stinkdamp.name=Bottle of Stinkdamp
-item.clean_water_canteen.name=Clean Water Canteen
-item.charcoal_filter.name=Charcoal Filter
-item.dirty_water_canteen.name=Dirty Water Canteen
+
+# --- Water bottles (match ItemTANWaterBottle) ---
 item.dirty_water_bottle.name=Dirty Water Bottle
-item.empty_canteen.name=Empty Canteen
-item.filtered_water_canteen.name=Filtered Water Canteen
 item.filtered_water_bottle.name=Filtered Water Bottle
+item.purified_water_bottle.name=Purified Water Bottle
+
+item.charcoal_filter.name=Charcoal Filter
 item.freeze_powder.name=Freeze Powder
 item.freeze_rod.name=Freeze Rod
 item.ice_charge.name=Ice Charge
 item.ice_cube.name=Ice Cube
+item.ice_cream.name=Ice Cream
+item.charc_os.name=Charc-O's
 item.jelled_slime.name=Jelled Slime
+
+# --- Jelled Slime armor ---
 item.jelled_slime_helmet.name=Jelled Slime Helmet
 item.jelled_slime_chestplate.name=Jelled Slime Chestplate
 item.jelled_slime_leggings.name=Jelled Slime Leggings
 item.jelled_slime_boots.name=Jelled Slime Boots
+
+# --- Leaf armor ---
+item.leaf_helmet.name=Leaf Veil
+item.leaf_chestplate.name=Leaf Poncho
+item.leaf_leggings.name=Leaf Pants
+item.leaf_boots.name=Leaf Greaves
+
+# --- Fruit Juices (match ItemFruitJuice → item.juice_<type>) ---
 item.juice_apple.name=Apple Juice
 item.juice_beetroot.name=Beetroot Juice
 item.juice_cactus.name=Cactus Juice
@@ -68,16 +80,61 @@ item.juice_golden_apple.name=Golden Apple Juice
 item.juice_golden_carrot.name=Golden Carrot Juice
 item.juice_melon.name=Melon Juice
 item.juice_pumpkin.name=Pumpkin Juice
+item.juice_glow_berry.name=Glow Berry Juice
+item.juice_sweet_berry.name=Sweet Berry Juice
+
 item.lifeblood_crystal.name=Lifeblood Crystal
 item.respirator.name=Respirator
 item.season_clock.name=Season Clock
 item.spawn_egg_freeze.name=Spawn Freeze
 item.tan_icon.name=TAN Icon
 item.thermometer.name=Thermometer
+
+# --- Wool armor (dyeable) ---
 item.wool_helmet.name=Wool Hood
-item.wool_chestplate.name=Wool Jacket
+item.wool_chestplate.name=Wool Parka
 item.wool_leggings.name=Wool Pants
 item.wool_boots.name=Wool Boots
+
+# --- Canteens (match ItemCanteen#getUnlocalizedName: item.<variant>_<state>_canteen) ---
+# States: empty, dirty, water (clean), purified
+# Variants: leather, copper, iron, gold, diamond, netherite
+
+# Leather
+item.leather_empty_canteen.name=Empty Leather Canteen
+item.leather_dirty_canteen.name=Leather Dirty Water Canteen
+item.leather_water_canteen.name=Leather Water Canteen
+item.leather_purified_canteen.name=Leather Purified Water Canteen
+
+# Copper
+item.copper_empty_canteen.name=Empty Copper Canteen
+item.copper_dirty_canteen.name=Copper Dirty Water Canteen
+item.copper_water_canteen.name=Copper Water Canteen
+item.copper_purified_canteen.name=Copper Purified Water Canteen
+
+# Iron
+item.iron_empty_canteen.name=Empty Iron Canteen
+item.iron_dirty_canteen.name=Iron Dirty Water Canteen
+item.iron_water_canteen.name=Iron Water Canteen
+item.iron_purified_canteen.name=Iron Purified Water Canteen
+
+# Gold
+item.gold_empty_canteen.name=Empty Gold Canteen
+item.gold_dirty_canteen.name=Gold Dirty Water Canteen
+item.gold_water_canteen.name=Gold Water Canteen
+item.gold_purified_canteen.name=Gold Purified Water Canteen
+
+# Diamond
+item.diamond_empty_canteen.name=Empty Diamond Canteen
+item.diamond_dirty_canteen.name=Diamond Dirty Water Canteen
+item.diamond_water_canteen.name=Diamond Water Canteen
+item.diamond_purified_canteen.name=Diamond Purified Water Canteen
+
+# Netherite
+item.netherite_empty_canteen.name=Empty Netherite Canteen
+item.netherite_dirty_canteen.name=Netherite Dirty Water Canteen
+item.netherite_water_canteen.name=Netherite Water Canteen
+item.netherite_purified_canteen.name=Netherite Purified Water Canteen
 
 potion.hypothermia=Hypothermia
 potion.hyperthermia=Hyperthermia

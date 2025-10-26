@@ -1,155 +1,248 @@
+// File: toughasnails/init/ModCrafting.java
 package toughasnails.init;
 
 import cpw.mods.fml.common.registry.GameRegistry;
-import net.minecraft.block.Block;
 import net.minecraft.init.Blocks;
 import net.minecraft.init.Items;
 import net.minecraft.item.ItemStack;
+import net.minecraftforge.oredict.OreDictionary;
 import net.minecraftforge.oredict.ShapedOreRecipe;
 import toughasnails.api.TANBlocks;
-import toughasnails.api.TANPotions;
 import toughasnails.api.item.TANItems;
 import toughasnails.block.BlockTANTemperatureCoil;
 import toughasnails.item.ItemFruitJuice;
 import toughasnails.item.ItemTANWaterBottle;
-import net.minecraft.potion.Potion;
-import net.minecraft.potion.PotionEffect;
-import net.minecraft.item.ItemPotion;
-import net.minecraft.item.Item;
-import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.world.World;
 
-/**
- * Full Forge 1.7.10 backport of Tough As Nails ModCrafting.
- * Replaces PotionType / BrewingRecipeRegistry with direct PotionEffect logic
- * and preserves all crafting & smelting behaviors.
- */
-public class ModCrafting {
+public final class ModCrafting {
 
     public static void init() {
-        addOreRegistration();
         addCraftingRecipes();
         addSmeltingRecipes();
-        registerBrewingRecipes();
     }
 
+    /* ============================================================ */
+    /* Crafting                                                     */
+    /* ============================================================ */
     private static void addCraftingRecipes() {
+        /* ---------------- Armor: wool ---------------- */
+        GameRegistry.addShapedRecipe(new ItemStack(TANItems.wool_helmet),
+                "###", "# #", '#', Blocks.wool);
+        GameRegistry.addShapedRecipe(new ItemStack(TANItems.wool_chestplate),
+                "# #", "###", "###", '#', Blocks.wool);
+        GameRegistry.addShapedRecipe(new ItemStack(TANItems.wool_leggings),
+                "###", "# #", "# #", '#', Blocks.wool);
+        GameRegistry.addShapedRecipe(new ItemStack(TANItems.wool_boots),
+                "# #", "# #", '#', Blocks.wool);
 
-        // Armor sets
-        GameRegistry.addShapedRecipe(new ItemStack(TANItems.wool_helmet), "###", "# #", '#', Blocks.wool);
-        GameRegistry.addShapedRecipe(new ItemStack(TANItems.wool_chestplate), "# #", "###", "###", '#', Blocks.wool);
-        GameRegistry.addShapedRecipe(new ItemStack(TANItems.wool_leggings), "###", "# #", "# #", '#', Blocks.wool);
-        GameRegistry.addShapedRecipe(new ItemStack(TANItems.wool_boots), "# #", "# #", '#', Blocks.wool);
+        /* ---------------- Armor: jelled slime ---------------- */
+        GameRegistry.addShapedRecipe(new ItemStack(TANItems.jelled_slime_helmet),
+                "###", "# #", '#', TANItems.jelled_slime);
+        GameRegistry.addShapedRecipe(new ItemStack(TANItems.jelled_slime_chestplate),
+                "# #", "###", "###", '#', TANItems.jelled_slime);
+        GameRegistry.addShapedRecipe(new ItemStack(TANItems.jelled_slime_leggings),
+                "###", "# #", "# #", '#', TANItems.jelled_slime);
+        GameRegistry.addShapedRecipe(new ItemStack(TANItems.jelled_slime_boots),
+                "# #", "# #", '#', TANItems.jelled_slime);
 
-        GameRegistry.addShapedRecipe(new ItemStack(TANItems.jelled_slime_helmet), "###", "# #", '#', TANItems.jelled_slime);
-        GameRegistry.addShapedRecipe(new ItemStack(TANItems.jelled_slime_chestplate), "# #", "###", "###", '#', TANItems.jelled_slime);
-        GameRegistry.addShapedRecipe(new ItemStack(TANItems.jelled_slime_leggings), "###", "# #", "# #", '#', TANItems.jelled_slime);
-        GameRegistry.addShapedRecipe(new ItemStack(TANItems.jelled_slime_boots), "# #", "# #", '#', TANItems.jelled_slime);
+        /* ---------------- Armor: leaf (ANY leaves via oredict + fallbacks) ---------------- */
+        // Prefer oredict so modded leaves work out of the box
+        safeAddOreRecipe(new ItemStack(TANItems.leaf_helmet),
+                "###", "# #",
+                '#', "treeLeaves");
+        safeAddOreRecipe(new ItemStack(TANItems.leaf_chestplate),
+                "# #", "###", "###",
+                '#', "treeLeaves");
+        safeAddOreRecipe(new ItemStack(TANItems.leaf_leggings),
+                "###", "# #", "# #",
+                '#', "treeLeaves");
+        safeAddOreRecipe(new ItemStack(TANItems.leaf_boots),
+                "# #", "# #",
+                '#', "treeLeaves");
 
-        // Block recipes
-        GameRegistry.addRecipe(new ShapedOreRecipe(new ItemStack(TANBlocks.campfire), " L ", "LLL", "CCC", 'C', Blocks.cobblestone, 'L', "logWood"));
-        GameRegistry.addRecipe(new ShapedOreRecipe(new ItemStack(TANBlocks.campfire), " L ", "LLL", "CCC", 'C', "chunkStone", 'L', "splitWood"));
-        GameRegistry.addRecipe(new ShapedOreRecipe(new ItemStack(TANBlocks.rain_collector), "IBI", "C C", "CCC", 'C', Blocks.cobblestone, 'I', "ingotIron", 'B', Blocks.iron_bars));
+        // Fallbacks in case "treeLeaves" isn't populated in some packs
+        ItemStack anyLeaves1 = new ItemStack(Blocks.leaves, 1, OreDictionary.WILDCARD_VALUE);
+        ItemStack anyLeaves2 = new ItemStack(Blocks.leaves2, 1, OreDictionary.WILDCARD_VALUE);
 
-        GameRegistry.addShapedRecipe(new ItemStack(TANBlocks.temperature_coil, 1, BlockTANTemperatureCoil.CoilType.HEATING.ordinal()), "BBB", "BBB", "CCC", 'B', Items.blaze_rod, 'C', Blocks.cobblestone);
-        GameRegistry.addShapedRecipe(new ItemStack(TANBlocks.temperature_coil, 1, BlockTANTemperatureCoil.CoilType.COOLING.ordinal()), "FFF", "FFF", "CCC", 'F', TANItems.freeze_rod, 'C', Blocks.cobblestone);
+        GameRegistry.addShapedRecipe(new ItemStack(TANItems.leaf_helmet),
+                "###", "# #", '#', anyLeaves1);
+        GameRegistry.addShapedRecipe(new ItemStack(TANItems.leaf_chestplate),
+                "# #", "###", "###", '#', anyLeaves1);
+        GameRegistry.addShapedRecipe(new ItemStack(TANItems.leaf_leggings),
+                "###", "# #", "# #", '#', anyLeaves1);
+        GameRegistry.addShapedRecipe(new ItemStack(TANItems.leaf_boots),
+                "# #", "# #", '#', anyLeaves1);
 
-        // Misc items
-        GameRegistry.addShapedRecipe(new ItemStack(TANItems.canteen), " L ", "L L", "LLL", 'L', Items.leather);
-        GameRegistry.addShapelessRecipe(new ItemStack(TANItems.canteen, 1, 2), TANItems.charcoal_filter, new ItemStack(TANItems.canteen, 1, 1));
-        GameRegistry.addShapelessRecipe(new ItemStack(TANItems.water_bottle, 1, ItemTANWaterBottle.WaterBottleType.FILTERED.ordinal()),
-                new ItemStack(TANItems.water_bottle, 1, ItemTANWaterBottle.WaterBottleType.DIRTY.ordinal()), TANItems.charcoal_filter);
+        GameRegistry.addShapedRecipe(new ItemStack(TANItems.leaf_helmet),
+                "###", "# #", '#', anyLeaves2);
+        GameRegistry.addShapedRecipe(new ItemStack(TANItems.leaf_chestplate),
+                "# #", "###", "###", '#', anyLeaves2);
+        GameRegistry.addShapedRecipe(new ItemStack(TANItems.leaf_leggings),
+                "###", "# #", "# #", '#', anyLeaves2);
+        GameRegistry.addShapedRecipe(new ItemStack(TANItems.leaf_boots),
+                "# #", "# #", '#', anyLeaves2);
 
-        // Fruit juices (simulate potion bottle + ingredients)
-        addJuiceRecipes();
+        /* ---------------- Blocks ---------------- */
+        safeAddOreRecipe(new ItemStack(TANBlocks.campfire),
+                " L ",
+                "LLL",
+                "CCC",
+                'L', "logWood",
+                'C', Blocks.cobblestone
+        );
 
-        // Misc craftables
-        GameRegistry.addShapelessRecipe(new ItemStack(TANItems.freeze_powder, 2), TANItems.freeze_rod);
-        GameRegistry.addShapelessRecipe(new ItemStack(TANItems.ice_charge, 3), TANItems.ice_cube, Items.gunpowder, TANItems.freeze_powder);
-        GameRegistry.addShapedRecipe(new ItemStack(TANItems.jelled_slime, 3), "III", "ISI", "III", 'I', TANItems.ice_cube, 'S', Items.slime_ball);
-        GameRegistry.addShapedRecipe(new ItemStack(TANItems.charcoal_filter, 3), "PPP", "CCC", "PPP", 'P', Items.paper, 'C', new ItemStack(Items.coal, 1, 1));
-        GameRegistry.addShapedRecipe(new ItemStack(TANItems.season_clock), " Q ", "QRQ", " Q ", 'Q', Items.quartz, 'R', Items.redstone);
-        GameRegistry.addShapedRecipe(new ItemStack(TANBlocks.season_sensors[0]), "GGG", "QSQ", "CCC",
-                'G', Blocks.glass, 'Q', Items.quartz, 'S', TANItems.season_clock, 'C', new ItemStack(Blocks.stone_slab, 1, 3));
-        GameRegistry.addShapedRecipe(new ItemStack(TANItems.thermometer), " D ", "DQD", " D ", 'D', Items.diamond, 'Q', Items.quartz);
+        safeAddOreRecipe(new ItemStack(TANBlocks.rain_collector),
+                "IBI",
+                "C C",
+                "CCC",
+                'I', "ingotIron",
+                'B', Blocks.iron_bars,
+                'C', Blocks.cobblestone
+        );
+
+        GameRegistry.addShapedRecipe(
+                new ItemStack(TANBlocks.temperature_coil, 1, BlockTANTemperatureCoil.CoilType.HEATING.ordinal()),
+                "BBB", "BBB", "CCC",
+                'B', Items.blaze_rod,
+                'C', Blocks.cobblestone
+        );
+        GameRegistry.addShapedRecipe(
+                new ItemStack(TANBlocks.temperature_coil, 1, BlockTANTemperatureCoil.CoilType.COOLING.ordinal()),
+                "FFF", "FFF", "CCC",
+                'F', TANItems.freeze_rod,
+                'C', Blocks.cobblestone
+        );
+
+        /* ---------------- Canteen & filters ---------------- */
+        GameRegistry.addShapedRecipe(new ItemStack(TANItems.canteen),
+                " L ",
+                "L L",
+                "LLL",
+                'L', Items.leather
+        );
+
+        GameRegistry.addShapelessRecipe(
+                new ItemStack(TANItems.water_bottle, 1, ItemTANWaterBottle.WaterBottleType.FILTERED.ordinal()),
+                new ItemStack(TANItems.water_bottle, 1, ItemTANWaterBottle.WaterBottleType.DIRTY.ordinal()),
+                TANItems.charcoal_filter
+        );
+
+        GameRegistry.addShapedRecipe(new ItemStack(TANItems.charcoal_filter, 3),
+                "PPP", "CCC", "PPP",
+                'P', Items.paper,
+                'C', new ItemStack(Items.coal, 1, 1)
+        );
+
+        /* ---------------- Cold/ice items ---------------- */
+        GameRegistry.addShapelessRecipe(new ItemStack(TANItems.freeze_powder, 2),
+                TANItems.freeze_rod);
+        GameRegistry.addShapelessRecipe(new ItemStack(TANItems.ice_charge, 3),
+                TANItems.ice_cube, Items.gunpowder, TANItems.freeze_powder);
+        GameRegistry.addShapedRecipe(new ItemStack(TANItems.jelled_slime, 3),
+                "III", "ISI", "III",
+                'I', TANItems.ice_cube,
+                'S', Items.slime_ball
+        );
+
+        /* ---------------- Thermometer ---------------- */
+        GameRegistry.addShapedRecipe(new ItemStack(TANItems.thermometer),
+                " D ",
+                "DQD",
+                " D ",
+                'D', Items.diamond,
+                'Q', Items.quartz
+        );
+
+        /* ---------------- Fruit Juices ---------------- */
+        addJuice("apple",            Items.apple);
+        addJuice("beetroot",         null);
+        addJuice("cactus",           Blocks.cactus);
+        addJuice("carrot",           Items.carrot);
+        addJuice("chorus_fruit",     null);
+        addJuice("melon",            Items.melon);
+        addJuice("pumpkin",          Blocks.pumpkin);
+        addJuice("golden_apple",     Items.golden_apple);
+        addJuice("golden_carrot",    Items.golden_carrot);
+        addJuice("glistering_melon", Items.speckled_melon);
+        addJuice("sweetberry",       oreOrItem("cropSweetberry", null));
+        addJuice("glowberry",        oreOrItem("cropGlowberry",  null));
     }
 
-    private static void addJuiceRecipes() {
-        // Water potion in 1.7.10 has damage 0
-        ItemStack waterBottle = new ItemStack(Items.potionitem, 1, 0);
-
-        GameRegistry.addShapelessRecipe(new ItemStack(TANItems.fruit_juice, 1, ItemFruitJuice.JuiceType.APPLE.ordinal()), waterBottle, Items.sugar, Items.apple);
-        GameRegistry.addShapelessRecipe(new ItemStack(TANItems.fruit_juice, 1, ItemFruitJuice.JuiceType.CACTUS.ordinal()), waterBottle, Items.sugar, Blocks.cactus);
-        GameRegistry.addShapelessRecipe(new ItemStack(TANItems.fruit_juice, 1, ItemFruitJuice.JuiceType.CARROT.ordinal()), waterBottle, Items.sugar, Items.carrot);
-        GameRegistry.addShapelessRecipe(new ItemStack(TANItems.fruit_juice, 1, ItemFruitJuice.JuiceType.MELON.ordinal()), waterBottle, Items.sugar, Items.melon);
-        GameRegistry.addShapelessRecipe(new ItemStack(TANItems.fruit_juice, 1, ItemFruitJuice.JuiceType.PUMPKIN.ordinal()), waterBottle, Items.sugar, Blocks.pumpkin);
-        GameRegistry.addShapelessRecipe(new ItemStack(TANItems.fruit_juice, 1, ItemFruitJuice.JuiceType.GOLDEN_APPLE.ordinal()), waterBottle, Items.sugar, Items.golden_apple);
-        GameRegistry.addShapelessRecipe(new ItemStack(TANItems.fruit_juice, 1, ItemFruitJuice.JuiceType.GOLDEN_CARROT.ordinal()), waterBottle, Items.sugar, Items.golden_carrot);
-        GameRegistry.addShapelessRecipe(new ItemStack(TANItems.fruit_juice, 1, ItemFruitJuice.JuiceType.GLISTERING_MELON.ordinal()), waterBottle, Items.sugar, Items.speckled_melon);
+    /* ============================================================ */
+    /* Smelting (DIRTY -> FILTERED)                                 */
+    /* ============================================================ */
+    private static void addSmeltingRecipes() {
+        GameRegistry.addSmelting(
+                new ItemStack(TANItems.water_bottle, 1, ItemTANWaterBottle.WaterBottleType.DIRTY.ordinal()),
+                new ItemStack(TANItems.water_bottle, 1, ItemTANWaterBottle.WaterBottleType.FILTERED.ordinal()),
+                0.0F
+        );
     }
 
-    public static void addSmeltingRecipes() {
-        // Filtered bottle -> clean water bottle
-        GameRegistry.addSmelting(new ItemStack(TANItems.water_bottle, 1, ItemTANWaterBottle.WaterBottleType.FILTERED.ordinal()),
-                new ItemStack(Items.potionitem, 1, 0), 0.0F);
+    /* ============================================================ */
+    /* Helpers                                                      */
+    /* ============================================================ */
+
+    private static void safeAddOreRecipe(ItemStack output, Object... patternAndMap) {
+        if (output == null || output.getItem() == null) return;
+        for (int i = 0; i < patternAndMap.length; i++) {
+            if (patternAndMap[i] instanceof Character) {
+                int v = i + 1;
+                if (v >= patternAndMap.length) return;
+                Object val = patternAndMap[v];
+                if (val instanceof String) {
+                    if (OreDictionary.getOres((String) val).isEmpty()) {
+                        return; // skip if missing oredict entry
+                    }
+                } else if (val instanceof ItemStack) {
+                    ItemStack st = (ItemStack) val;
+                    if (st.getItem() == null) return;
+                }
+            }
+        }
+        GameRegistry.addRecipe(new ShapedOreRecipe(output, patternAndMap));
     }
 
-    private static void addOreRegistration() {
-        // No ore dictionary additions required here.
+    private static ItemStack oreOrItem(String oreKey, ItemStack fallback) {
+        if (oreKey != null && !OreDictionary.getOres(oreKey).isEmpty()) {
+            ItemStack st = OreDictionary.getOres(oreKey).get(0);
+            return st == null ? null : st.copy();
+        }
+        return fallback;
     }
 
-    /**
-     * Recreates basic brewing functionality for heat/cold resistance potions in 1.7.10.
-     * Vanilla brewing stand uses hardcoded recipes; this registers them dynamically.
-     */
-    private static void registerBrewingRecipes() {
-        // Since Forge 1.7.10 has no BrewingRecipeRegistry, we emulate with a custom handler.
-        BrewingHandler.register();
-    }
+    private static void addJuice(String juiceEnumLowerName, Object source) {
+        int meta = juiceMeta(juiceEnumLowerName);
+        if (meta < 0) return;
 
-    // --------------------------------------------------------------------------------------
-    // Custom Brewing Handler (functional replacement for BrewingRecipeRegistry in 1.7.10)
-    // --------------------------------------------------------------------------------------
-    public static class BrewingHandler {
+        ItemStack bottle = new ItemStack(Items.glass_bottle);
+        ItemStack sugar  = new ItemStack(Items.sugar);
 
-        public static void register() {
-            // Register your potion effects manually here.
-            // Example mapping similar to 1.9.4 brewing recipes:
-            addBrewingRecipe(Potion.regeneration, Items.fire_charge, TANPotions.heat_resistance);
-            addBrewingRecipe(Potion.regeneration, TANItems.ice_charge, TANPotions.cold_resistance);
-            addBrewingRecipe(TANPotions.heat_resistance, Items.redstone, TANPotions.heat_resistance); // extend duration
-            addBrewingRecipe(TANPotions.cold_resistance, Items.redstone, TANPotions.cold_resistance);
+        ItemStack fruit = null;
+        if (source instanceof ItemStack) {
+            fruit = (ItemStack) source;
+        } else if (source instanceof net.minecraft.item.Item) {
+            fruit = new ItemStack((net.minecraft.item.Item) source);
+        } else if (source instanceof net.minecraft.block.Block) {
+            fruit = new ItemStack((net.minecraft.block.Block) source);
+        } else if (source instanceof String) {
+            fruit = oreOrItem((String) source, null);
         }
 
-        /**
-         * Applies a potion transformation manually on brewing.
-         * (You can hook this into your own brewing tile logic or item use.)
-         */
-        private static void addBrewingRecipe(Potion base, Item ingredient, Potion result) {
-            // Store or use these for custom brewing handler or internal lookup
-        }
+        if (fruit == null || fruit.getItem() == null) return;
 
-        /**
-         * Called to simulate the actual brewing effect transformation.
-         */
-        public static ItemStack tryBrew(ItemStack inputPotion, ItemStack ingredient) {
-            if (inputPotion == null || !(inputPotion.getItem() instanceof ItemPotion)) return null;
-
-            // Example: Fire charge converts to heat resistance
-            if (ingredient.getItem() == Items.fire_charge)
-                return getPotionStack(TANPotions.heat_resistance);
-
-            if (ingredient.getItem() == TANItems.ice_charge)
-                return getPotionStack(TANPotions.cold_resistance);
-
-            return null;
-        }
-
-        private static ItemStack getPotionStack(Potion potion) {
-            ItemStack bottle = new ItemStack(Items.potionitem, 1, 0);
-            ItemPotion potionItem = (ItemPotion) Items.potionitem;
-            potionItem.setPotionEffect("+" + potion.getId());
-            return bottle;
-        }
+        GameRegistry.addShapelessRecipe(
+                new ItemStack(TANItems.fruit_juice, 1, meta),
+                bottle, sugar, fruit
+        );
     }
+
+    private static int juiceMeta(String enumNameLower) {
+        ItemFruitJuice.JuiceType[] vals = ItemFruitJuice.JuiceType.values();
+        for (int i = 0; i < vals.length; i++) {
+            if (vals[i].getName().equals(enumNameLower)) return i;
+        }
+        return -1;
+    }
+
+    private ModCrafting() {}
 }

@@ -21,6 +21,10 @@ public class TANItems {
     public static Item wool_chestplate;
     public static Item wool_leggings;
     public static Item wool_boots;
+    public static Item leaf_helmet;
+    public static Item leaf_chestplate;
+    public static Item leaf_leggings;
+    public static Item leaf_boots;
     public static Item jelled_slime_helmet;
     public static Item jelled_slime_chestplate;
     public static Item jelled_slime_leggings;
@@ -33,8 +37,11 @@ public class TANItems {
     public static Item charcoal_filter;
     public static Item lifeblood_crystal;
     public static Item season_clock;
+    public static Item ice_cream;
+    public static Item charc_os;
     public static Item spawn_egg;
     public static ItemArmor.ArmorMaterial wool_armor_material;
+    public static ItemArmor.ArmorMaterial leaf_armor_material;
     public static ItemArmor.ArmorMaterial jelled_slime_armor_material;
     public static ItemArmor.ArmorMaterial respirator_material;
 }

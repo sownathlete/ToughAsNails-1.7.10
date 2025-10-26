@@ -12,94 +12,84 @@ import toughasnails.config.TANConfig;
 import toughasnails.temperature.BlockTemperatureData;
 import toughasnails.temperature.TemperatureDebugger;
 import toughasnails.temperature.TemperatureTrend;
-import toughasnails.temperature.modifier.TemperatureModifier;
 
 public class ObjectProximityModifier extends TemperatureModifier {
 
-    public ObjectProximityModifier(TemperatureDebugger debugger) {
-        super(debugger);
-    }
+    public ObjectProximityModifier(TemperatureDebugger debugger) { super(debugger); }
 
     @Override
     public int modifyChangeRate(World world, EntityPlayer player, int changeRate, TemperatureTrend trend) {
-        int newChangeRate = changeRate;
+        int newRate = changeRate;
 
-        int px = (int) Math.floor(player.posX);
-        int py = (int) Math.floor(player.posY);
-        int pz = (int) Math.floor(player.posZ);
+        int px = (int)Math.floor(player.posX);
+        int py = (int)Math.floor(player.posY);
+        int pz = (int)Math.floor(player.posZ);
 
-        int tempSourceBlocks = 0;
+        int heatSources = 0;
         for (int x = -3; x <= 3; x++) {
             for (int y = -2; y <= 2; y++) {
                 for (int z = -3; z <= 3; z++) {
-                    int bx = px + x;
-                    int by = py + y - 1;
-                    int bz = pz + z;
-                    Block block = world.getBlock(bx, by, bz);
-                    if (getBlockTemperature(player, block) != 0.0f) {
-                        tempSourceBlocks++;
-                    }
+                    Block b = world.getBlock(px + x, py + y - 1, pz + z);
+                    float t = getBlockTemperature(player, b);
+                    if (t != 0.0f) heatSources++;
                 }
             }
         }
 
-        debugger.start(TemperatureDebugger.Modifier.NEARBY_BLOCKS_RATE, newChangeRate);
-        newChangeRate -= tempSourceBlocks * 20;
-        debugger.end(newChangeRate);
+        // pull faster toward target when many heat/cold sources are around (but never crazy-fast)
+        // each source reduces ~10 ticks, capped to avoid < 10 globally by handler
+        newRate = Math.max(20, newRate - (heatSources * 10));
 
-        return newChangeRate;
+        debugger.start(TemperatureDebugger.Modifier.NEARBY_BLOCKS_RATE, changeRate);
+        debugger.end(newRate);
+        return newRate;
     }
 
     @Override
     public Temperature modifyTarget(World world, EntityPlayer player, Temperature temperature) {
-        int newTemperatureLevel = temperature.getRawValue();
+        int level = temperature.getRawValue();
 
-        int px = (int) Math.floor(player.posX);
-        int py = (int) Math.floor(player.posY);
-        int pz = (int) Math.floor(player.posZ);
+        int px = (int)Math.floor(player.posX);
+        int py = (int)Math.floor(player.posY);
+        int pz = (int)Math.floor(player.posZ);
 
-        float blockTemperatureModifier = 0.0f;
+        float sum = 0.0f;
         for (int x = -3; x <= 3; x++) {
             for (int y = -2; y <= 2; y++) {
                 for (int z = -3; z <= 3; z++) {
-                    int bx = px + x;
-                    int by = py + y - 1;
-                    int bz = pz + z;
-                    Block block = world.getBlock(bx, by, bz);
-                    blockTemperatureModifier += getBlockTemperature(player, block);
+                    Block b = world.getBlock(px + x, py + y - 1, pz + z);
+                    sum += getBlockTemperature(player, b);
                 }
             }
         }
 
-        debugger.start(TemperatureDebugger.Modifier.NEARBY_BLOCKS_TARGET, newTemperatureLevel);
-        newTemperatureLevel += (int) blockTemperatureModifier;
-        debugger.end(newTemperatureLevel);
+        int out = level + (int)sum;
 
-        return new Temperature(newTemperatureLevel);
+        debugger.start(TemperatureDebugger.Modifier.NEARBY_BLOCKS_TARGET, level);
+        debugger.end(out);
+
+        return new Temperature(out);
     }
 
     public static float getBlockTemperature(EntityPlayer player, Block block) {
+        if (block == null) return 0.0f;
+
         World world = player.worldObj;
-        Material material = block.getMaterial();
-        BiomeGenBase biome = world.getBiomeGenForCoords((int) player.posX, (int) player.posZ);
+        Material mat = block.getMaterial();
 
+        // Config-defined block temps (exact block match)
         String blockName = Block.blockRegistry.getNameForObject(block);
-        if (blockName == null) return 0.0f;
-
-        if (TANConfig.blockTemperatureData.containsKey(blockName)) {
-            ArrayList<BlockTemperatureData> blockTempData = TANConfig.blockTemperatureData.get(blockName);
-            for (BlockTemperatureData tempData : blockTempData) {
-                // Compare by Block reference only
-                if (tempData.block == block) {
-                    return tempData.blockTemperature;
-                }
+        if (blockName != null && TANConfig.blockTemperatureData.containsKey(blockName)) {
+            ArrayList<BlockTemperatureData> list = TANConfig.blockTemperatureData.get(blockName);
+            for (BlockTemperatureData d : list) {
+                if (d.block == block) return d.blockTemperature;
             }
-            return 0.0f;
         }
 
-        if (material == Material.fire) {
-            return TANConfig.materialTemperatureData.fire;
-        }
+        // Material-based defaults
+        if (mat == Material.fire)  return TANConfig.materialTemperatureData.fire;
+        if (mat == Material.lava)  return TANConfig.materialTemperatureData.fire * 6.0f; // treat lava as very hot
+        if (mat == Material.ice)   return -2.0f;
 
         return 0.0f;
     }

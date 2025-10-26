@@ -1,139 +1,176 @@
+// File: toughasnails/api/temperature/TemperatureHelper.java
 package toughasnails.api.temperature;
-
-import java.util.ArrayList;
-import java.util.List;
-
-import cpw.mods.fml.common.FMLCommonHandler;
-import cpw.mods.fml.common.eventhandler.SubscribeEvent;
-import cpw.mods.fml.common.gameevent.TickEvent;
 
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.nbt.NBTTagList;
+import net.minecraft.tileentity.TileEntity;
 import net.minecraft.world.World;
-
+import net.minecraftforge.common.util.Constants.NBT;
+import toughasnails.api.stat.capability.ITemperature;
 import toughasnails.temperature.TemperatureHandler;
-import toughasnails.temperature.TemperatureStorage;
+import toughasnails.temperature.modifier.TemperatureModifier;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
- * Forge 1.7.10 back-port helper for Tough As Nails temperature.
+ * 1.7.10 helper: stores the whole TemperatureHandler state in the player's EntityData NBT.
+ * Persists:
+ *  - temperatureLevel
+ *  - temperatureTimer
+ *  - externalModifiers (name, amount, rate, endTime)
  *
- * - Stores a TemperatureHandler per-player in persistent Entity NBT.
- * - Rehydrates on demand.
- * - Exposes bootstrap() to register a player tick listener so temperature updates run.
+ * Also exposes small utility methods used elsewhere in the mod:
+ *  - bootstrap()                             : currently a no-op (kept for API parity).
+ *  - getTemperatureData(EntityPlayer)        : returns the current ITemperature view.
+ *  - isPosClimatisedForTemp(World,x,y,z, T)  : checks nearby ITemperatureRegulator TEs.
  */
 public final class TemperatureHelper {
 
-    /** NBT key used to store the serialized handler on the player. */
-    private static final String KEY_ROOT = "TAN_Temperature";
-
-    /** Storage adapter reused for (de)serialization. */
-    private static final TemperatureStorage STORAGE = new TemperatureStorage();
-
-    /** Guard so we only register tick hooks once. */
-    private static boolean BOOTSTRAPPED = false;
+    /* -------- NBT keys -------- */
+    private static final String ROOT_KEY            = "TAN_Temperature";
+    private static final String K_TEMPERATURE_LEVEL = "temperatureLevel";
+    private static final String K_TEMPERATURE_TIMER = "temperatureTimer";
+    private static final String K_EXTERNAL_LIST     = "externalModifiers";
+    private static final String K_NAME              = "name";
+    private static final String K_AMOUNT            = "amount";
+    private static final String K_RATE              = "rate";
+    private static final String K_END_TIME          = "endTime";
 
     private TemperatureHelper() {}
 
-    /* ====================================================================== */
-    /* Public API                                                             */
-    /* ====================================================================== */
+    /* ======================================================================
+       Public API used throughout the mod
+       ====================================================================== */
 
-    /** Call once during mod init (client + server safe). */
+    /** Present for compatibility with proxy/core bootstrap calls. No-op on 1.7.10. */
     public static void bootstrap() {
-        if (BOOTSTRAPPED) return;
-        BOOTSTRAPPED = true;
-        // PlayerTickEvent in 1.7.10 is posted on the FML bus
-        FMLCommonHandler.instance().bus().register(new EventHooks());
+        // Intentionally empty; tick handlers are registered on the FML bus (StatTickHandler).
     }
 
-    /**
-     * Returns a TemperatureHandler for this player. If none was saved yet,
-     * a fresh handler (midpoint temperature) is returned.
-     */
-    public static TemperatureHandler getOrCreate(EntityPlayer player) {
-        if (player == null) return new TemperatureHandler();
-        NBTTagCompound root = player.getEntityData();
-
-        if (!root.hasKey(KEY_ROOT)) {
-            // No saved state yet — new handler with defaults.
-            return new TemperatureHandler();
-        }
-
-        // Rehydrate from NBT using the same storage logic used on save.
-        NBTTagCompound tag = root.getCompoundTag(KEY_ROOT);
-        TemperatureHandler handler = new TemperatureHandler();
-        STORAGE.readNBT(null, handler, null, tag);
-        return handler;
-    }
-
-    /** Alias used by existing code paths (items, HUD). */
-    public static TemperatureHandler getTemperatureData(EntityPlayer player) {
+    /** Get a live temperature object for this player (loads or creates persisted state). */
+    public static ITemperature getTemperatureData(EntityPlayer player) {
         return getOrCreate(player);
     }
 
-    /** Saves the given handler back into the player's persistent NBT. */
-    public static void save(EntityPlayer player, TemperatureHandler handler) {
-        if (player == null || handler == null) return;
-        NBTTagCompound tag = (NBTTagCompound) STORAGE.writeNBT(null, handler, null);
-        player.getEntityData().setTag(KEY_ROOT, tag);
-    }
-
-    /* ====================================================================== */
-    /* World helpers for temperature regulators (coils, etc.)                 */
-    /* ====================================================================== */
-
-    /** Returns all temperature regulators currently loaded in the world. */
-    public static List<ITemperatureRegulator> getTemperatureRegulators(World world) {
-        ArrayList<ITemperatureRegulator> list = new ArrayList<ITemperatureRegulator>();
-        if (world == null) return list;
-        @SuppressWarnings("unchecked")
-        List<Object> tiles = world.loadedTileEntityList;
-        for (Object o : tiles) {
-            if (o instanceof ITemperatureRegulator) {
-                list.add((ITemperatureRegulator) o);
-            }
-        }
-        return list;
-    }
-
     /**
-     * Checks if the given coordinate is inside any regulator whose target
-     * temperature is at least the provided temperature.
+     * Returns true if any nearby ITemperatureRegulator claims the position AND provides
+     * at least the requested absolute temperature delta (needed.getRawValue()).
+     *
+     * This iterates world.loadedTileEntityList and defers the spatial check to the
+     * regulator’s isPosRegulated(x,y,z) method.
      */
-    public static boolean isPosClimatisedForTemp(World world, int x, int y, int z, Temperature temperature) {
-        if (world == null || temperature == null) return false;
-        for (ITemperatureRegulator reg : getTemperatureRegulators(world)) {
-            if (reg.getRegulatedTemperature().getRawValue() >= temperature.getRawValue()
-                && reg.isPosRegulated(x, y, z)) {
-                return true;
-            }
+    public static boolean isPosClimatisedForTemp(World world, int x, int y, int z, Temperature needed) {
+        if (world == null) return false;
+
+        @SuppressWarnings("unchecked")
+        List<TileEntity> tes = world.loadedTileEntityList;
+        if (tes == null || tes.isEmpty()) return false;
+
+        int required = Math.abs(needed == null ? 0 : needed.getRawValue());
+
+        for (TileEntity te : tes) {
+            if (!(te instanceof ITemperatureRegulator)) continue;
+
+            ITemperatureRegulator reg = (ITemperatureRegulator) te;
+            if (!reg.isPosRegulated(x, y, z)) continue;
+
+            Temperature offered = reg.getRegulatedTemperature();
+            int strength = Math.abs(offered == null ? 0 : offered.getRawValue());
+            if (strength >= required) return true;
         }
         return false;
     }
 
-    /* ====================================================================== */
-    /* Tick bridge                                                            */
-    /* ====================================================================== */
+    /* ======================================================================
+       Persistence: load/save the handler to the player's EntityData NBT
+       ====================================================================== */
 
-    /**
-     * Listens to PlayerTickEvent and runs temperature logic.
-     * Must be public & static so FML's ASM handler can access it (avoids IllegalAccessError).
-     */
-    public static final class EventHooks {
-        @SubscribeEvent
-        public void onPlayerTick(TickEvent.PlayerTickEvent e) {
-            final EntityPlayer p = e.player;
-            if (p == null) return;
-            final World w = p.worldObj;
+    /** Load handler from NBT or create/save defaults if missing. */
+    public static TemperatureHandler getOrCreate(EntityPlayer player) {
+        if (player == null) return new TemperatureHandler();
 
-            // Pull current state, tick, then persist (only when changed)
-            TemperatureHandler h = TemperatureHelper.getOrCreate(p);
-            h.update(p, w, e.phase);
+        NBTTagCompound entity = player.getEntityData();
+        if (!entity.hasKey(ROOT_KEY)) {
+            TemperatureHandler h = new TemperatureHandler();
+            // save defaults so future reads have the tag
+            save(player, h);
+            return h;
+        }
 
-            if (e.phase == TickEvent.Phase.END && h.hasChanged()) {
-                TemperatureHelper.save(p, h);
-                h.onSendClientUpdate();
+        NBTTagCompound tag = entity.getCompoundTag(ROOT_KEY);
+        return readFromNBT(tag);
+    }
+
+    /** Save current handler state to player NBT. Call at the end of any state change/tick. */
+    public static void save(EntityPlayer player, TemperatureHandler handler) {
+        if (player == null || handler == null) return;
+
+        NBTTagCompound root = new NBTTagCompound();
+        writeToNBT(root, handler);
+
+        NBTTagCompound entity = player.getEntityData();
+        entity.setTag(ROOT_KEY, root);
+    }
+
+    /** Remove our sub-NBT (rarely needed, e.g., for resets). */
+    public static void clear(EntityPlayer player) {
+        if (player == null) return;
+        NBTTagCompound entity = player.getEntityData();
+        if (entity.hasKey(ROOT_KEY)) {
+            entity.removeTag(ROOT_KEY);
+        }
+    }
+
+    /* ----------------------- NBT (de)serialization ----------------------- */
+
+    private static TemperatureHandler readFromNBT(NBTTagCompound tag) {
+        TemperatureHandler h = new TemperatureHandler();
+
+        // Level & timer
+        if (tag.hasKey(K_TEMPERATURE_LEVEL)) {
+            h.setTemperature(new Temperature(tag.getInteger(K_TEMPERATURE_LEVEL)));
+        }
+        if (tag.hasKey(K_TEMPERATURE_TIMER)) {
+            h.setChangeTime(tag.getInteger(K_TEMPERATURE_TIMER));
+        }
+
+        // External modifiers
+        Map<String, TemperatureModifier.ExternalModifier> map = new HashMap<String, TemperatureModifier.ExternalModifier>();
+        if (tag.hasKey(K_EXTERNAL_LIST, NBT.TAG_LIST)) {
+            NBTTagList list = tag.getTagList(K_EXTERNAL_LIST, NBT.TAG_COMPOUND);
+            for (int i = 0; i < list.tagCount(); i++) {
+                NBTTagCompound e = list.getCompoundTagAt(i);
+                String name  = e.getString(K_NAME);
+                int amount   = e.getInteger(K_AMOUNT);
+                int rate     = e.getInteger(K_RATE);
+                int endTime  = e.getInteger(K_END_TIME);
+
+                TemperatureModifier.ExternalModifier m =
+                        new TemperatureModifier.ExternalModifier(name, amount, rate, endTime);
+                map.put(name, m);
             }
         }
+        h.setExternalModifiers(map);
+
+        return h;
+    }
+
+    private static void writeToNBT(NBTTagCompound tag, TemperatureHandler h) {
+        tag.setInteger(K_TEMPERATURE_LEVEL, h.getTemperature().getRawValue());
+        tag.setInteger(K_TEMPERATURE_TIMER, h.getChangeTime());
+
+        NBTTagList list = new NBTTagList();
+        for (TemperatureModifier.ExternalModifier m : h.getExternalModifiers().values()) {
+            NBTTagCompound e = new NBTTagCompound();
+            e.setString(K_NAME,      m.getName());
+            e.setInteger(K_AMOUNT,   m.getAmount());
+            e.setInteger(K_RATE,     m.getRate());
+            e.setInteger(K_END_TIME, m.getEndTime());
+            list.appendTag(e);
+        }
+        tag.setTag(K_EXTERNAL_LIST, list);
     }
 }

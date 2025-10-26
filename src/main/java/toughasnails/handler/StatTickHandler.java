@@ -11,10 +11,12 @@ import toughasnails.api.config.SyncedConfig;
 import toughasnails.api.temperature.TemperatureHelper;
 import toughasnails.temperature.TemperatureHandler;
 import toughasnails.thirst.ThirstHandler;
+import toughasnails.core.ToughAsNails;
 
 public final class StatTickHandler {
 
-    /** NBT subtags copied on death/respawn */
+    private static int logThrottle = 0;
+
     private static final String TEMP_KEY   = "TAN_Temperature";
     private static final String THIRST_KEY = "TAN_Thirst";
 
@@ -26,14 +28,16 @@ public final class StatTickHandler {
         final World world = player.worldObj;
         if (world == null || world.isRemote) return; // server only
 
-        // --- TEMPERATURE ---
+        if ((++logThrottle % 40) == 0) {
+            ToughAsNails.logger.debug("[TAN Tick] Player tick END for " + player.getCommandSenderName());
+        }
+
         if (SyncedConfig.getBooleanValue(GameplayOption.ENABLE_TEMPERATURE)) {
             TemperatureHandler temp = TemperatureHelper.getOrCreate(player);
             temp.update(player, world, e.phase);
             TemperatureHelper.save(player, temp);
         }
 
-        // --- THIRST ---
         if (SyncedConfig.getBooleanValue(GameplayOption.ENABLE_THIRST)) {
             ThirstHandler thirst = ThirstHandler.getOrCreate(player);
             thirst.update(player, world, e.phase);
@@ -41,7 +45,6 @@ public final class StatTickHandler {
         }
     }
 
-    /** Copy our sub-NBT from the old player to the new one on respawn. */
     @SubscribeEvent
     public void onPlayerClone(PlayerEvent.Clone e) {
         NBTTagCompound oldTag = e.original.getEntityData();
@@ -53,5 +56,6 @@ public final class StatTickHandler {
         if (oldTag.hasKey(THIRST_KEY)) {
             newTag.setTag(THIRST_KEY, oldTag.getCompoundTag(THIRST_KEY));
         }
+        ToughAsNails.logger.info("[TAN Tick] Copied stat NBT to respawned player.");
     }
 }

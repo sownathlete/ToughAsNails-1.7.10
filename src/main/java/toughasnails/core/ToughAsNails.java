@@ -5,6 +5,7 @@ import java.io.File;
 import net.minecraft.command.ICommand;
 import net.minecraftforge.common.MinecraftForge;
 
+import cpw.mods.fml.common.FMLCommonHandler;
 import cpw.mods.fml.common.Mod;
 import cpw.mods.fml.common.Mod.EventHandler;
 import cpw.mods.fml.common.Mod.Instance;
@@ -17,8 +18,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import toughasnails.api.temperature.TemperatureHelper;
-import toughasnails.core.CommonProxy;
-import toughasnails.core.ClientProxy;
 import toughasnails.command.TANCommand;
 import toughasnails.config.TANConfig;
 import toughasnails.handler.BlockHarvestEventHandler;
@@ -71,15 +70,17 @@ public class ToughAsNails {
         ModCrafting.init();
         ModAchievements.init();
 
-        // Register event handlers living on the Forge bus
+        // Forge bus handlers
         MinecraftForge.EVENT_BUS.register(new LootTableEventHandler());
         MinecraftForge.EVENT_BUS.register(new BlockHarvestEventHandler());
-        MinecraftForge.EVENT_BUS.register(new StatTickHandler());
 
-        // >>> IMPORTANT: hook our per-player tick handlers (FML bus) <<<
+        // >>> Register tick handler on the **FML** bus (required for TickEvent.*) <<<
+        FMLCommonHandler.instance().bus().register(new StatTickHandler());
+
+        // >>> Temperature/Thirst FML tick bridges <<<
         TemperatureHelper.bootstrap();
         ThirstHandler.bootstrap();
-        logger.info("[TAN] Bootstrapped Temperature & Thirst tick handlers.");
+        logger.info("[TAN] Bootstrapped Temperature & Thirst tick handlers (FML bus).");
 
         proxy.registerRenderers();
     }

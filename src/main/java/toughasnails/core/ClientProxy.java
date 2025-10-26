@@ -10,6 +10,8 @@ import net.minecraft.item.Item;
 import net.minecraft.util.ResourceLocation;
 import net.minecraft.world.World;
 import net.minecraftforge.common.MinecraftForge;
+import toughasnails.client.overlay.HyperthermiaOverlayHandler;
+import toughasnails.client.overlay.HypothermiaOverlayHandler;
 import toughasnails.entities.EntityFreeze;
 import toughasnails.entities.RenderFreeze;
 import toughasnails.entities.projectile.EntityIceball;
@@ -37,6 +39,8 @@ public class ClientProxy extends CommonProxy {
 
         // HUD overlays (client-side)
         MinecraftForge.EVENT_BUS.register(new TemperatureOverlayHandler());
+        MinecraftForge.EVENT_BUS.register(new HyperthermiaOverlayHandler());
+        MinecraftForge.EVENT_BUS.register(new HypothermiaOverlayHandler());
         MinecraftForge.EVENT_BUS.register(new ThirstOverlayHandler());
         MinecraftForge.EVENT_BUS.register(new HealthOverlayHandler());
     }

@@ -1,0 +1,75 @@
+/*
+ * Decompiled with CFR 0.148.
+ * 
+ * Could not load the following classes:
+ *  net.minecraft.entity.player.EntityPlayer
+ *  net.minecraft.world.World
+ *  net.minecraft.world.WorldProvider
+ */
+package toughasnails.temperature.modifier;
+
+import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.world.World;
+import net.minecraft.world.WorldProvider;
+import toughasnails.api.config.GameplayOption;
+import toughasnails.api.config.SyncedConfig;
+import toughasnails.api.season.Season;
+import toughasnails.api.season.SeasonHelper;
+import toughasnails.api.temperature.Temperature;
+import toughasnails.temperature.TemperatureDebugger;
+import toughasnails.temperature.TemperatureTrend;
+import toughasnails.temperature.modifier.TemperatureModifier;
+
+public class SeasonModifier
+extends TemperatureModifier {
+    public SeasonModifier(TemperatureDebugger debugger) {
+        super(debugger);
+    }
+
+    @Override
+    public int modifyChangeRate(World world, EntityPlayer player, int changeRate, TemperatureTrend trend) {
+        return changeRate;
+    }
+
+    @Override
+    public Temperature modifyTarget(World world, EntityPlayer player, Temperature temperature) {
+        int temperatureLevel = temperature.getRawValue();
+        Season.SubSeason season = SeasonHelper.getSeasonData(world).getSubSeason();
+        if (!SyncedConfig.getBooleanValue(GameplayOption.ENABLE_SEASONS)) {
+            season = Season.SubSeason.MID_SUMMER;
+        }
+        this.debugger.start(TemperatureDebugger.Modifier.SEASON_TARGET, temperatureLevel);
+        if (world.provider.isSurfaceWorld()) {
+            switch (season) {
+                case MID_WINTER: 
+                case LATE_WINTER: {
+                    temperatureLevel -= 6;
+                    break;
+                }
+                case EARLY_SPRING: 
+                case EARLY_WINTER: {
+                    temperatureLevel -= 4;
+                    break;
+                }
+                case MID_SPRING: 
+                case LATE_AUTUMN: {
+                    temperatureLevel -= 2;
+                    break;
+                }
+                case MID_SUMMER: 
+                case EARLY_AUTUMN: {
+                    temperatureLevel += 2;
+                    break;
+                }
+                case LATE_SUMMER: {
+                    temperatureLevel += 4;
+                    break;
+                }
+            }
+        }
+        this.debugger.end(temperatureLevel);
+        return new Temperature(temperatureLevel);
+    }
+
+}
+

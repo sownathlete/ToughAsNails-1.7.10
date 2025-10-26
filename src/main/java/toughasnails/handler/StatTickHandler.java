@@ -33,17 +33,17 @@ public final class StatTickHandler {
             ToughAsNails.logger.debug("[TAN Tick] Player tick " + e.phase + " for " + player.getCommandSenderName());
         }
 
-        /* ---------------- Temperature (unchanged path) ---------------- */
-        if (e.phase == TickEvent.Phase.END && SyncedConfig.getBooleanValue(GameplayOption.ENABLE_TEMPERATURE)) {
+        /* ---------------- Temperature (UPDATE on BOTH phases, SAVE on END) ---------------- */
+        if (SyncedConfig.getBooleanValue(GameplayOption.ENABLE_TEMPERATURE)) {
             TemperatureHandler temp = TemperatureHelper.getOrCreate(player);
             temp.update(player, world, e.phase);
-            TemperatureHelper.save(player, temp);
-
-            // If you ever need client mirrors for temperature, gate a similar block here.
-            // (Left off to avoid extra packets.)
+            if (e.phase == TickEvent.Phase.END) {
+                TemperatureHelper.save(player, temp);
+                // If you ever want to sync temperature with packets, do it here.
+            }
         }
 
-        /* ---------------- Thirst (both phases; sync on change) -------- */
+        /* ---------------- Thirst (both phases; sync on change) --------------------------- */
         if (SyncedConfig.getBooleanValue(GameplayOption.ENABLE_THIRST)) {
             ThirstHandler thirst = ThirstHandler.getOrCreate(player);
             thirst.update(player, world, e.phase);

@@ -1,38 +1,44 @@
-/*
- * Decompiled with CFR 0.148.
- */
+// File: toughasnails/api/temperature/TemperatureScale.java
 package toughasnails.api.temperature;
 
-public class TemperatureScale {
-    private static int scaleTotal = TemperatureScale.generateTotalScale();
-    private static int[] rangeStarts = TemperatureScale.generateRangeStarts();
+public final class TemperatureScale {
+
+    // Build these via helper methods to avoid static init order pitfalls.
+    private static final int   scaleTotal  = generateTotalScale();
+    private static final int[] rangeStarts = generateRangeStarts();
+
+    private TemperatureScale() {}
 
     public static TemperatureRange getTemperatureRange(int scalePos) {
-        if (scalePos < 0 || scalePos > scaleTotal) {
-            return null;
-        }
+        if (scalePos < 0 || scalePos > scaleTotal) return null;
         for (TemperatureRange range : TemperatureRange.values()) {
-            if (scalePos > rangeStarts[range.ordinal()] + range.rangeSize - 1) continue;
-            return range;
+            int start = rangeStarts[range.ordinal()];
+            if (scalePos <= start + range.getRangeSize() - 1) return range;
         }
-        throw new RuntimeException("Could not find range for value " + scalePos + ". This should never happen!");
+        // Should never happen if inputs are clamped
+        throw new RuntimeException("Could not find range for value " + scalePos + " (scaleTotal=" + scaleTotal + ").");
     }
 
     public static int getRangeIndex(int scalePos, boolean reverseEnd) {
-        TemperatureRange temperatureRange = TemperatureScale.getTemperatureRange(scalePos);
-        return Math.abs((reverseEnd ? temperatureRange.getRangeSize() - 1 : 0) - (scalePos - rangeStarts[temperatureRange.ordinal()]));
+        TemperatureRange tr = getTemperatureRange(scalePos);
+        int start = rangeStarts[tr.ordinal()];
+        int idx   = scalePos - start; // 0..size-1 within this range
+        return Math.abs((reverseEnd ? tr.getRangeSize() - 1 : 0) - idx);
     }
 
     public static float getRangeDelta(int scalePos, boolean reverseEnd) {
-        return (float)(TemperatureScale.getRangeIndex(scalePos, reverseEnd) + 1) / (float)TemperatureScale.getTemperatureRange(scalePos).getRangeSize();
+        TemperatureRange tr = getTemperatureRange(scalePos);
+        return (getRangeIndex(scalePos, reverseEnd) + 1) / (float) tr.getRangeSize();
     }
 
     public static boolean isScalePosInRange(int scalePos, TemperatureRange startRange, TemperatureRange endRange) {
-        return scalePos >= rangeStarts[startRange.ordinal()] && scalePos <= rangeStarts[endRange.ordinal()] + endRange.rangeSize - 1;
+        int lo = rangeStarts[startRange.ordinal()];
+        int hi = rangeStarts[endRange.ordinal()] + endRange.getRangeSize() - 1;
+        return scalePos >= lo && scalePos <= hi;
     }
 
     public static boolean isScalePosInRange(int scalePos, TemperatureRange range) {
-        return TemperatureScale.isScalePosInRange(scalePos, range, range);
+        return isScalePosInRange(scalePos, range, range);
     }
 
     public static int getRangeStart(TemperatureRange range) {
@@ -43,25 +49,29 @@ public class TemperatureScale {
         return scaleTotal;
     }
 
+    /* ===================== helpers ===================== */
+
     private static int generateTotalScale() {
-        int totalRange = 0;
+        int total = 0;
         for (TemperatureRange range : TemperatureRange.values()) {
-            totalRange += range.getRangeSize();
+            total += range.getRangeSize();
         }
-        return totalRange - 1;
+        // Total positions are 0..(total-1)
+        return total - 1;
     }
 
     private static int[] generateRangeStarts() {
-        int[] generatedStarts = new int[TemperatureRange.values().length];
-        for (int index = 0; index < TemperatureRange.values().length; ++index) {
-            if (index > 0) {
-                TemperatureRange previousRange = TemperatureRange.values()[index - 1];
-                generatedStarts[index] = generatedStarts[previousRange.ordinal()] + previousRange.rangeSize;
-                continue;
+        TemperatureRange[] vals = TemperatureRange.values();
+        int[] starts = new int[vals.length]; // <-- local array; DO NOT touch the static field during init
+        for (int i = 0; i < vals.length; i++) {
+            if (i == 0) {
+                starts[i] = 0;
+            } else {
+                TemperatureRange prev = vals[i - 1];
+                starts[i] = starts[prev.ordinal()] + prev.getRangeSize();
             }
-            generatedStarts[index] = 0;
         }
-        return generatedStarts;
+        return starts;
     }
 
     public static enum TemperatureRange {
@@ -71,7 +81,7 @@ public class TemperatureScale {
         WARM(5),
         HOT(6);
 
-        private int rangeSize;
+        private final int rangeSize;
 
         private TemperatureRange(int rangeSize) {
             this.rangeSize = rangeSize;
@@ -81,6 +91,4 @@ public class TemperatureScale {
             return this.rangeSize;
         }
     }
-
 }
-

@@ -8,7 +8,7 @@ import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.world.ColorizerFoliage;
-
+import toughasnails.api.TANBlocks;
 import toughasnails.api.item.TANItems;
 import toughasnails.item.ItemCanteen;
 import toughasnails.item.ItemFruitJuice;
@@ -55,6 +55,12 @@ public final class CreativeTabTAN extends CreativeTabs {
     @Override
     public void displayAllReleventItems(List list) {
 
+    	addBlockIfPresent(list, TANBlocks.thermoregulator);
+    	addBlockIfPresent(list, TANBlocks.temperature_gauge);
+    	
+    	addBlockIfPresent(list, TANBlocks.rain_collector2 != null ? TANBlocks.rain_collector2 : TANBlocks.rain_collector);
+
+    	addBlockIfPresent(list, TANBlocks.water_purifier);
         // 1) Thermometer – dynamic per client in Creative
         list.add(makeDynamicThermometer());
 
@@ -163,4 +169,12 @@ public final class CreativeTabTAN extends CreativeTabs {
         st.getTagCompound().setBoolean(THERMO_DYNAMIC_KEY, true);
         return st;
     }
+    
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    private static void addBlockIfPresent(List list, net.minecraft.block.Block b) {
+        if (b != null) {
+            list.add(new ItemStack(Item.getItemFromBlock(b)));
+        }
+    }
+
 }

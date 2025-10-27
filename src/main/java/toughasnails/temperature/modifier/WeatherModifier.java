@@ -1,6 +1,7 @@
 // File: toughasnails/temperature/modifier/WeatherModifier.java
 package toughasnails.temperature.modifier;
 
+import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.world.World;
@@ -28,10 +29,10 @@ public class WeatherModifier extends TemperatureModifier {
         int out = changeRate;
         float mult = 1.0F;
 
-        if (player.isInsideOfMaterial(Material.lava)) mult *= LAVA_RATE_MULT;
-        if (isPlayerWet(world, player))               mult *= WET_RATE_MULT;
-        else if (isSnowingOnPlayer(world, player))    mult *= SNOW_RATE_MULT;
-        if (player.isBurning())                       mult *= BURN_RATE_MULT;
+        if (isInLavaTight(world, player)) mult *= LAVA_RATE_MULT;
+        if (isPlayerWet(world, player))   mult *= WET_RATE_MULT;
+        else if (isSnowingOnPlayer(world, player)) mult *= SNOW_RATE_MULT;
+        if (player.isBurning())           mult *= BURN_RATE_MULT;
 
         int newRate = Math.max(20, Math.round(out * mult));
         debugger.start(TemperatureDebugger.Modifier.WET_RATE, changeRate);
@@ -43,8 +44,8 @@ public class WeatherModifier extends TemperatureModifier {
     public Temperature modifyTarget(World world, EntityPlayer player, Temperature temperature) {
         int level = temperature.getRawValue();
 
-        // Hard override: lava = absolute max
-        if (player.isInsideOfMaterial(Material.lava)) {
+        // Lava: slam to max
+        if (isInLavaTight(world, player)) {
             int max = TemperatureScale.getScaleTotal();
             debugger.start(TemperatureDebugger.Modifier.WET_TARGET, level);
             debugger.end(max);
@@ -68,6 +69,15 @@ public class WeatherModifier extends TemperatureModifier {
         }
 
         return new Temperature(level);
+    }
+
+    private static boolean isInLavaTight(World world, EntityPlayer player) {
+        if (player.isInsideOfMaterial(Material.lava)) return true;
+        int x = (int)Math.floor(player.posX);
+        int y = (int)Math.floor(player.posY);
+        int z = (int)Math.floor(player.posZ);
+        Block bFeet = world.getBlock(x, y, z);
+        return bFeet != null && bFeet.getMaterial() == Material.lava;
     }
 
     private static boolean isPlayerWet(World world, EntityPlayer player) {

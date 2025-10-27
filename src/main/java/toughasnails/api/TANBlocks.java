@@ -17,6 +17,11 @@ public class TANBlocks {
     public static Block glowstone_torch;
     public static Block dead_crops;
     public static Block[] season_sensors;
+    
+    public static Block thermoregulator;
+    public static Block temperature_gauge;
+    public static Block rain_collector2; // or reuse rain_collector if you prefer
+    public static Block water_purifier;
 
     static {
         season_sensors = new Block[4];

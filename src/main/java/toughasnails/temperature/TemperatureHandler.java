@@ -9,11 +9,11 @@ import com.google.common.collect.Maps;
 
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.EntityPlayerMP;
+import net.minecraft.init.Blocks;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.potion.PotionEffect;
 import net.minecraft.util.MathHelper;
 import net.minecraft.world.World;
-import net.minecraft.init.Blocks;
 
 import cpw.mods.fml.common.gameevent.TickEvent;
 import cpw.mods.fml.common.network.simpleimpl.IMessage;
@@ -38,7 +38,7 @@ import toughasnails.temperature.TemperatureTrend;
  *  - sustained exposure gates (must remain hot/cold for N seconds)
  *  - hysteresis (clear effects sooner than you apply them to prevent flapping)
  *  - smoother stepping toward target temperature
- *  - external modifier support
+ *  - external modifier support (rate + target offset)
  *  - debug logging
  */
 public class TemperatureHandler extends StatHandlerBase implements ITemperature {
@@ -67,14 +67,14 @@ public class TemperatureHandler extends StatHandlerBase implements ITemperature 
     private int heatExposureTicks = 0;
     private int coldExposureTicks = 0;
 
-    private TemperatureModifier altitudeModifier;
-    private TemperatureModifier armorModifier;
-    private TemperatureModifier biomeModifier;
-    private TemperatureModifier playerStateModifier;
-    private TemperatureModifier objectProximityModifier;
-    private TemperatureModifier weatherModifier;
-    private TemperatureModifier timeModifier;
-    private TemperatureModifier seasonModifier;
+    private final TemperatureModifier altitudeModifier;
+    private final TemperatureModifier armorModifier;
+    private final TemperatureModifier biomeModifier;
+    private final TemperatureModifier playerStateModifier;
+    private final TemperatureModifier objectProximityModifier;
+    private final TemperatureModifier weatherModifier;
+    private final TemperatureModifier timeModifier;
+    private final TemperatureModifier seasonModifier;
 
     private Map<String, TemperatureModifier.ExternalModifier> externalModifiers;
     public final TemperatureDebugger debugger = new TemperatureDebugger();
@@ -126,20 +126,32 @@ public class TemperatureHandler extends StatHandlerBase implements ITemperature 
             return;
         }
 
-        /* ---------------- Build TARGET ---------------- */
+        /* ---------------- Build TARGET (order matters) ----------------
+           Baseline → gear/state → local blocks → time/season → WEATHER LAST.
+           Weather includes hard clamps like “in lava = absolute max”.
+        */
         Temperature target = new Temperature(TEMPERATURE_SCALE_MIDPOINT);
         target = this.biomeModifier.modifyTarget(world, player, target);
         target = this.altitudeModifier.modifyTarget(world, player, target);
         target = this.armorModifier.modifyTarget(world, player, target);
         target = this.playerStateModifier.modifyTarget(world, player, target);
         target = this.objectProximityModifier.modifyTarget(world, player, target);
-        target = this.weatherModifier.modifyTarget(world, player, target);
         target = this.timeModifier.modifyTarget(world, player, target);
         target = this.seasonModifier.modifyTarget(world, player, target);
+        target = this.weatherModifier.modifyTarget(world, player, target); // <— LAST
 
         int targetRaw = MathHelper.clamp_int(target.getRawValue(), 0, TemperatureScale.getScaleTotal());
 
-        // >>> Small, explicit environment push so Nether/lava visibly go HOT <<<
+        // External target OFFSETS (amount) — sum and apply to target now
+        int extAmount = 0;
+        for (TemperatureModifier.ExternalModifier m : this.externalModifiers.values()) {
+            extAmount += m.getAmount();
+        }
+        if (extAmount != 0) {
+            targetRaw = MathHelper.clamp_int(targetRaw + extAmount, 0, TemperatureScale.getScaleTotal());
+        }
+
+        // Keep a small explicit environment push so Nether / nearby lava feels stronger visually.
         targetRaw = applyEnvironmentHeatModifiers(player, world, targetRaw);
 
         this.debugger.targetTemperature = targetRaw;
@@ -176,13 +188,14 @@ public class TemperatureHandler extends StatHandlerBase implements ITemperature 
         changeTicks = this.seasonModifier.modifyChangeRate(world, player, changeTicks, trend);
         ToughAsNails.logger.debug("[TAN Temp]["+pname+"] Rate after Season  : " + before + " -> " + changeTicks);
 
-        // External modifiers (climatisation, etc.)
+        // External modifiers (rate only) and pruning by lifetime
         Iterator<TemperatureModifier.ExternalModifier> it = this.externalModifiers.values().iterator();
         int extStart = changeTicks;
         int extAdded = 0;
         this.debugger.start(TemperatureDebugger.Modifier.CLIMATISATION_RATE, changeTicks);
         while (it.hasNext()) {
             TemperatureModifier.ExternalModifier m = it.next();
+            // End time is compared to our local timer; adjust at creation if you want world time.
             if (this.temperatureTimer > m.getEndTime()) { it.remove(); continue; }
             changeTicks += m.getRate();
             extAdded += m.getRate();

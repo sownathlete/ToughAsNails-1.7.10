@@ -1,3 +1,4 @@
+// File: toughasnails/item/ItemThermometer.java
 package toughasnails.item;
 
 import java.util.List;
@@ -13,7 +14,6 @@ import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.inventory.Container;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
-import net.minecraft.util.ChatComponentText;
 import net.minecraft.util.IIcon;
 import net.minecraft.util.MathHelper;
 import net.minecraft.world.World;
@@ -80,12 +80,41 @@ public class ItemThermometer extends Item {
         return icons[idx];
     }
 
+    /* Also handle every other render path (equipped hand / entity renders) */
+
+    @Override
+    @SideOnly(Side.CLIENT)
+    public IIcon getIcon(ItemStack stack, int pass) {
+        return getIconIndex(stack);
+    }
+
+    @Override
+    @SideOnly(Side.CLIENT)
+    public IIcon getIconFromDamage(int damage) {
+        return (icons == null) ? super.getIconFromDamage(damage)
+                               : icons[Math.min(DEFAULT_FRAME, icons.length - 1)];
+    }
+
+    @Override
+    @SideOnly(Side.CLIENT)
+    public IIcon getIconFromDamageForRenderPass(int damage, int pass) {
+        return getIconFromDamage(damage);
+    }
+
     /* ---------------- Runtime (server authoritative for inventory items) ---------------- */
 
     @Override
     public void onUpdate(ItemStack stack, World world, Entity entity, int slot, boolean held) {
-        // Only do logic on the SERVER so we reflect the true server-side temperature.
-        if (world.isRemote || !(entity instanceof EntityPlayer)) return;
+        // CLIENT: touch the icon when held/selected so the hand view refreshes immediately
+        if (world.isRemote) {
+            if (held || (entity instanceof EntityPlayer && ((EntityPlayer) entity).inventory.currentItem == slot)) {
+                getIconIndex(stack); // no state change, ensures latest icon path is used this frame
+            }
+            return;
+        }
+
+        // SERVER: compute & store the authoritative frame, and mark as non-dynamic
+        if (!(entity instanceof EntityPlayer)) return;
 
         EntityPlayer player = (EntityPlayer) entity;
         TemperatureHandler h = TemperatureHelper.getOrCreate(player);
@@ -95,10 +124,8 @@ public class ItemThermometer extends Item {
         double norm = (total <= 0) ? 0.0 : Math.max(0.0, Math.min(1.0, current / (double) total));
         int frame   = MathHelper.clamp_int((int)Math.round(norm * 20.0), 0, 20);
 
-        // Force inventory/held items to be static-rendered from stored NBT (no flicker).
         ensureTag(stack).setBoolean(NBT_DYNAMIC, false);
 
-        // Update stored frame only if changed.
         if (frame != getStoredFrame(stack)) {
             setStoredFrame(stack, frame);
 
@@ -110,31 +137,6 @@ public class ItemThermometer extends Item {
         }
 
         TemperatureHelper.save(player, h);
-    }
-
-    @Override
-    public ItemStack onItemRightClick(ItemStack stack, World world, EntityPlayer player) {
-        // Print from the SERVER so numbers aren't stuck at client defaults.
-        if (!world.isRemote) {
-            TemperatureHandler h = TemperatureHelper.getOrCreate(player);
-
-            final int current = h.getTemperature().getRawValue();
-            final int total   = TemperatureScale.getScaleTotal();
-            final double pct  = (total <= 0) ? 0.0 : (100.0 * current / total);
-
-            // Debug data (computed on server by the handler)
-            final int target = h.debugger.targetTemperature;
-            final int rate   = h.debugger.changeTicks;
-            final int timer  = h.debugger.temperatureTimer;
-
-            player.addChatMessage(new ChatComponentText(String.format(
-                "Temperature : %.0f%%  (%d / %d)  target=%d  rateTicks=%d  timer=%d",
-                pct, current, total, target, rate, timer
-            )));
-
-            TemperatureHelper.save(player, h);
-        }
-        return stack;
     }
 
     /* ---------------- Creative listing ---------------- */
@@ -163,8 +165,6 @@ public class ItemThermometer extends Item {
             EntityPlayer p = Minecraft.getMinecraft().thePlayer;
             if (p == null) return DEFAULT_FRAME;
 
-            // Client-side temperature; if your helper stores data on client too,
-            // this will reflect the current HUD value while the GUI is open.
             TemperatureHandler h = TemperatureHelper.getOrCreate(p);
             if (h == null) return DEFAULT_FRAME;
 

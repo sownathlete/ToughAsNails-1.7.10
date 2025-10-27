@@ -36,6 +36,10 @@ tile.season_sensor_summer.name=Season Sensor
 tile.season_sensor_autumn.name=Season Sensor
 tile.season_sensor_winter.name=Season Sensor
 tile.torch_new.name=Torch
+tile.toughasnails.thermoregulator.name=Thermoregulator
+tile.toughasnails.temperature_gauge.name=Temperature Gauge
+tile.toughasnails.rain_collector.name=Rain Collector
+tile.toughasnails.water_purifier.name=Water Purifier
 
 item.air_filter.name=Air Filter
 item.bottle_of_blackdamp.name=Bottle of Blackdamp
